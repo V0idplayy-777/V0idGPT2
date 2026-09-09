@@ -123,6 +123,19 @@ export class BPETokenizer {
   chatPrompt(userText: string): number[] {
     return [this.bos, ...this.encode('User: ' + userText + '\nAssistant: ')];
   }
+
+  /** Multi-turn prompt: full transcript + trailing assistant prefix (no eos). */
+  promptFor(messages: { role: string; text: string }[]): number[] {
+    const ids: number[] = [this.bos];
+    for (const m of messages) {
+      const prefix = m.role === 'user' ? 'User: ' : 'Assistant: ';
+      const tids = this.encode(prefix + m.text + '\n');
+      for (const t of tids) ids.push(t);
+    }
+    const tail = this.encode('Assistant: ');
+    for (const t of tail) ids.push(t);
+    return ids;
+  }
 }
 
 /** Incremental UTF-8 decoder for streaming (handles multi-byte splits). */

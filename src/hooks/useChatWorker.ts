@@ -20,8 +20,13 @@ export interface DoneEvent {
   stats: { prefillMs: number; genMs: number; tokens: number; stopped: string };
 }
 
+export interface ChatHistoryItem {
+  role: string;
+  text: string;
+}
+
 export interface GenCallbacks {
-  onStart: (promptTokens: number) => void;
+  onStart: (promptTokens: number, truncated: boolean) => void;
   onToken: (t: TokenEvent) => void;
   onDone: (d: DoneEvent) => void;
 }
@@ -56,7 +61,7 @@ export function useChatWorker() {
           setProgress(null);
           break;
         case 'start':
-          genRef.current?.onStart(m.promptTokens as number);
+          genRef.current?.onStart(m.promptTokens as number, m.truncated as boolean);
           break;
         case 'token':
           genRef.current?.onToken({ tokenId: m.tokenId as number, top: m.top as TokenEvent['top'] });
@@ -88,13 +93,16 @@ export function useChatWorker() {
     workerRef.current?.postMessage({ type: 'load', model, baseUrl: import.meta.env.BASE_URL });
   }, []);
 
-  const generate = useCallback((prompt: string, settings: GenerationSettings, debug: boolean, cbs: GenCallbacks) => {
-    const id = ++idRef.current;
-    genRef.current = cbs;
-    setGenerating(true);
-    setError(null);
-    workerRef.current?.postMessage({ type: 'generate', id, prompt, settings, debug });
-  }, []);
+  const generate = useCallback(
+    (history: ChatHistoryItem[], settings: GenerationSettings, debug: boolean, cbs: GenCallbacks) => {
+      const id = ++idRef.current;
+      genRef.current = cbs;
+      setGenerating(true);
+      setError(null);
+      workerRef.current?.postMessage({ type: 'generate', id, history, settings, debug });
+    },
+    [],
+  );
 
   const stop = useCallback(() => {
     workerRef.current?.postMessage({ type: 'stop' });

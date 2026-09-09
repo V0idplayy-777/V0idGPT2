@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ModelTabs, { type Selection } from './components/ModelTabs';
 import Chat, { type Msg, type StreamingState } from './components/Chat';
 import SettingsPanel from './components/SettingsPanel';
@@ -9,6 +9,8 @@ import { MODEL_DISPLAY, loadTokenizer, type ModelName } from './engine/model';
 import type { BPETokenizer } from './engine/tokenizer';
 import { DEFAULT_SETTINGS, type GenerationSettings } from './engine/types';
 
+const EMPTY_STREAM: StreamingState = { ids: [], tops: [], promptTokens: 0, truncated: false };
+
 export default function App() {
   const [selection, setSelection] = useState<Selection>('potato');
   const [convos, setConvos] = useState<Record<string, Msg[]>>({});
@@ -17,6 +19,9 @@ export default function App() {
   const [debug, setDebug] = useState(false);
   const [tokenizer, setTokenizer] = useState<BPETokenizer | null>(null);
   const worker = useChatWorker();
+  // Ref mirror of the streaming state so onDone can finalize without
+  // side effects inside a state updater (StrictMode-safe).
+  const streamRef = useRef<StreamingState>({ ...EMPTY_STREAM });
 
   useEffect(() => {
     loadTokenizer(import.meta.env.BASE_URL)
@@ -29,32 +34,53 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection]);
 
+  // A worker error mid-generation leaves no 'done' event: clear the stuck stream.
+  useEffect(() => {
+    if (worker.error) {
+      streamRef.current = { ...EMPTY_STREAM };
+      setStreaming(null);
+    }
+  }, [worker.error]);
+
   const messages = convos[selection] ?? [];
 
   const send = (text: string) => {
     if (!tokenizer || worker.generating || worker.status !== 'ready') return;
     const model = selection;
-    setConvos((c) => ({ ...c, [model]: [...(c[model] ?? []), { role: 'user', text }] }));
-    setStreaming({ ids: [], tops: [], promptTokens: 0 });
-    worker.generate(text, settings, debug, {
-      onStart: (promptTokens) => setStreaming((s) => (s ? { ...s, promptTokens } : s)),
-      onToken: (t) =>
-        setStreaming((s) => (s ? { ...s, ids: [...s.ids, t.tokenId], tops: [...s.tops, t.top ?? []] } : s)),
+    const updated: Msg[] = [...(convos[model] ?? []), { role: 'user', text }];
+    setConvos((c) => ({ ...c, [model]: updated }));
+    streamRef.current = { ...EMPTY_STREAM };
+    setStreaming({ ...EMPTY_STREAM });
+    const history = updated.map((m) => ({ role: m.role, text: m.text }));
+    worker.generate(history, settings, debug, {
+      onStart: (promptTokens, truncated) => {
+        streamRef.current = { ...streamRef.current, promptTokens, truncated };
+        setStreaming((s) => (s ? { ...s, promptTokens, truncated } : s));
+      },
+      onToken: (t) => {
+        streamRef.current = {
+          ...streamRef.current,
+          ids: [...streamRef.current.ids, t.tokenId],
+          tops: [...streamRef.current.tops, t.top ?? []],
+        };
+        setStreaming((s) =>
+          s ? { ...s, ids: [...s.ids, t.tokenId], tops: [...s.tops, t.top ?? []] } : s,
+        );
+      },
       onDone: (d) => {
-        setStreaming((s) => {
-          const tops = debug ? (s?.tops ?? []) : undefined;
-          const promptTokens = s?.promptTokens ?? 0;
-          const reply: Msg = {
-            role: 'assistant',
-            text: tokenizer.decode(d.ids),
-            ids: d.ids,
-            tops,
-            stats: d.stats,
-            promptTokens,
-          };
-          setConvos((c) => ({ ...c, [model]: [...(c[model] ?? []), reply] }));
-          return null;
-        });
+        const s = streamRef.current;
+        const reply: Msg = {
+          role: 'assistant',
+          text: tokenizer.decode(d.ids),
+          ids: d.ids,
+          tops: debug ? s.tops : undefined,
+          stats: d.stats,
+          promptTokens: s.promptTokens,
+          truncated: s.truncated,
+        };
+        streamRef.current = { ...EMPTY_STREAM };
+        setStreaming(null);
+        setConvos((c) => ({ ...c, [model]: [...(c[model] ?? []), reply] }));
       },
     });
   };

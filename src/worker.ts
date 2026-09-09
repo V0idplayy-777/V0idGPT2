@@ -13,7 +13,7 @@ interface LoadMsg {
 interface GenMsg {
   type: 'generate';
   id: number;
-  prompt: string;
+  history: { role: string; text: string }[];
   settings: GenerationSettings;
   debug: boolean;
 }
@@ -75,19 +75,20 @@ self.onmessage = async (ev: MessageEvent<InMsg>) => {
       stopFlag = false;
       const tok = tokenizer;
       const m = model;
-      let promptIds = tok.chatPrompt(msg.prompt);
+      let promptIds = tok.promptFor(msg.history);
+      let truncated = false;
       if (promptIds.length > m.cfg.ctx - 8) {
         // keep the tail (most recent context) — honest truncation, reported to UI
         promptIds = promptIds.slice(promptIds.length - (m.cfg.ctx - 8));
+        truncated = true;
       }
-      post({ type: 'start', id: msg.id, promptTokens: promptIds.length });
+      post({ type: 'start', id: msg.id, promptTokens: promptIds.length, truncated });
       const { ids, stats } = await generate(m, promptIds, msg.settings, {
         onToken: (id, top) => {
           post({
             type: 'token',
             id: msg.id,
             tokenId: id,
-            text: id === m.cfg.eos ? '' : tok.decodeToken(id),
             top: msg.debug ? top : undefined,
           });
         },

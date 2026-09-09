@@ -9,6 +9,7 @@ export interface AssistantMessage {
   tops?: { id: number; prob: number }[][];
   stats?: { prefillMs: number; genMs: number; tokens: number; stopped: string };
   promptTokens?: number;
+  truncated?: boolean;
 }
 
 export interface UserMessage {
@@ -22,6 +23,7 @@ export interface StreamingState {
   ids: number[];
   tops: { id: number; prob: number }[][];
   promptTokens: number;
+  truncated: boolean;
 }
 
 function DebugDetails({ msg, tok }: { msg: AssistantMessage; tok: BPETokenizer | null }) {
@@ -31,7 +33,7 @@ function DebugDetails({ msg, tok }: { msg: AssistantMessage; tok: BPETokenizer |
     <details className="debug">
       <summary>
         {msg.ids.length} tokens · {tps} tok/s · prefill {msg.stats?.prefillMs.toFixed(0)}ms · stop: {msg.stats?.stopped} ·
-        prompt {msg.promptTokens} tokens
+        prompt {msg.promptTokens} tokens{msg.truncated ? ' · ⚠ truncated' : ''}
       </summary>
       <div className="debug-body">
         <div className="debug-ids">
@@ -152,6 +154,7 @@ export default function Chat({
             {debug && (
               <div className="muted small">
                 streaming {streaming.ids.length} tokens · prompt {streaming.promptTokens} tokens
+                {streaming.truncated ? ' · ⚠ prompt truncated to fit context' : ''}
               </div>
             )}
           </div>

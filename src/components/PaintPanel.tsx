@@ -160,7 +160,7 @@ export default function PaintPanel() {
           <dd>local DDIM, this tab</dd>
         </dl>
         <p className="muted small">
-          Honest limits: this is a sub-million-parameter model trained on CIFAR-10. Expect blurry 32×32 images, mostly of
+          Honest limits: this is a 1.3M-parameter model trained on CIFAR-10. Expect blurry 32×32 images, mostly of
           the 10 object classes it knows. No stock images, no APIs — every pixel is denoised from pure noise by the
           model&apos;s own weights.
         </p>

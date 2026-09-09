@@ -22,7 +22,7 @@ import jax
 import jax.numpy as jnp
 
 from train_paint import ddim_sample, text_to_bytes
-from unet import PaintConfig, apply_unet, count_paint_params, encode_text, schedule
+from unet import PaintConfig, apply_unet, count_paint_params, ddim_times, encode_text, schedule
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LINEAR_SUFFIX = ("txt_mlp1", "txt_mlp2", "t_mlp1", "t_mlp2",

@@ -182,7 +182,8 @@ def main():
                 start_step = int(json.load(f).get("step", 0))
             print(f"resuming at step {start_step}", flush=True)
 
-    warmup = min(300, max(50, args.steps // 10))
+    warmup = min(300, max(10, args.steps // 10))
+    warmup = min(warmup, max(args.steps - 1, 1))
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=0.0, peak_value=args.lr, warmup_steps=warmup,
         decay_steps=max(args.steps - warmup, 1), end_value=args.lr * 0.05)
@@ -223,9 +224,8 @@ def main():
             losses = []
             for _ in range(12 if args.stage == "pretrain" else 8):
                 vb = val_data.batch(vrng, B, T)
-                vl = eval_loss(params, jnp.array(vb["inputs"]), jnp.array(vb["targets"]),
-                               None if vb["weights"] is None else jnp.array(vb["weights"]),
-                               cfg, block_fn)
+                vl = eval_fn(params, jnp.array(vb["inputs"]), jnp.array(vb["targets"]),
+                              None if vb["weights"] is None else jnp.array(vb["weights"]))
                 losses.append(float(vl.block_until_ready()))
             print(f"  [val] step {step} loss={np.mean(losses):.4f}", flush=True)
             logf.write(json.dumps({"step": step, "val_loss": float(np.mean(losses))}) + "\n")

@@ -85,7 +85,6 @@ def ddim_sample(params, cfg, abar, prompts, steps=20, seed=0, w=1.0):
 def save_grid(imgs, path, scale=4):
     n = len(imgs)
     h, w, _ = imgs[0].shape
-    grid = Image.new("RGB", (w * n, h * scale // scale * scale))
     sheet = np.concatenate([(imgs[i] * 255).astype(np.uint8) for i in range(n)], axis=1)
     Image.fromarray(sheet).resize((w * n * scale, h * scale), Image.NEAREST).save(path)
 

@@ -201,11 +201,11 @@ export function encodeText(w: PaintWeights, prompt: string): Float32Array {
   return out;
 }
 
-function linear(w: PaintWeights, name: string, x: Float32Array): Float32Array {
+function linear(w: PaintWeights, name: string, x: Float32Array, biasName?: string): Float32Array {
   const m = T(w, name);
   const out = new Float32Array(m.shape[0]);
   f32MatVec(m.data, m.shape[0], m.shape[1], x, out);
-  const b = w.tensors.get(name + '_b');
+  const b = w.tensors.get(biasName ?? name + '_b');
   if (b) for (let i = 0; i < out.length; i++) out[i] += b.data[i];
   return out;
 }

@@ -55,7 +55,8 @@ def quantize_q8(w):
         q = np.round(blk / safe)
         qp[:, s:e] = np.clip(q, -127, 127).astype(np.int8)
     s16 = scales.astype(np.float16).view(np.uint16)
-    if not np.allclose(s16.astype(np.float16).astype(np.float32), scales, rtol=1e-3, atol=1e-7):
+    back = s16.view(np.float16).astype(np.float32)
+    if not np.allclose(back, scales, rtol=1e-3, atol=1e-7):
         print("WARNING: fp16 scale overflow detected")
     return qp, s16
 
@@ -64,7 +65,7 @@ def dequantize_q8(qp, s16, shape):
     rows, cols = shape
     stride = qp.shape[1]
     nblocks = stride // 32
-    scales = s16.astype(np.float16).astype(np.float32)
+    scales = s16.view(np.float16).astype(np.float32)
     w = np.zeros((rows, cols), dtype=np.float32)
     for b in range(nblocks):
         s = b * 32

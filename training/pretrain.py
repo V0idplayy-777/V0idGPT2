@@ -147,6 +147,10 @@ def main():
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--resume", default="")
+    ap.add_argument("--fresh-schedule", action="store_true",
+                    help="init weights from --resume but restart step count/schedule (for SFT)")
+    ap.add_argument("--base-tokens", type=int, default=0,
+                    help="tokens already seen in a previous stage (added to the total)")
     ap.add_argument("--ckpt-every", type=int, default=800)
     ap.add_argument("--val-every", type=int, default=400)
     args = ap.parse_args()
@@ -172,15 +176,20 @@ def main():
     rng = np.random.default_rng(args.seed)
     params = M.init_params(jax.random.PRNGKey(args.seed), cfg)
     start_step = 0
+    resumed_tokens = 0
     if args.resume:
         print(f"resuming from {args.resume}", flush=True)
         z = np.load(args.resume)
         params = {k: jnp.array(z[k]) for k in z.files}
         meta_path = os.path.join(os.path.dirname(args.resume), "meta.json")
-        if os.path.exists(meta_path):
+        if os.path.exists(meta_path) and not args.fresh_schedule:
             with open(meta_path) as f:
-                start_step = int(json.load(f).get("step", 0))
-            print(f"resuming at step {start_step}", flush=True)
+                meta = json.load(f)
+                start_step = int(meta.get("step", 0))
+                resumed_tokens = int(meta.get("tokens", 0))
+            print(f"resuming at step {start_step} ({resumed_tokens} tokens)", flush=True)
+        if args.fresh_schedule:
+            print("fresh schedule: step count restarted", flush=True)
 
     warmup = min(300, max(10, args.steps // 10))
     warmup = min(warmup, max(args.steps - 1, 1))
@@ -200,7 +209,7 @@ def main():
 
     log_path = os.path.join(ckpt_dir, "log.jsonl")
     logf = open(log_path, "a", encoding="utf-8")
-    tokens_done = 0
+    tokens_done = args.base_tokens + resumed_tokens
     t_last = time.time()
     for step in range(start_step + 1, args.steps + 1):
         batch = data.batch(rng, B, T)

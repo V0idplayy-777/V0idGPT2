@@ -1,0 +1,7 @@
+# Python training dependencies (tested on CPython 3.11, Linux x86_64, CPU-only).
+# Install:  python -m venv .venv && .venv/bin/pip install -r training/requirements.txt
+jax[cpu]
+optax
+numpy
+pillow
+tqdm
